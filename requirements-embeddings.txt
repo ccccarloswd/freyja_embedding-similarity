@@ -1,0 +1,9 @@
+# Environment for the embeddings (TaBERT needs numpy < 2). Python 3.10.
+# torch-scatter must match the torch version (wheel index: https://data.pyg.org/whl/torch-2.3.0+cpu.html)
+torch==2.3.0
+torch-scatter==2.1.2
+transformers==4.41.2
+sentence-transformers==3.0.1
+numpy==1.26.4
+pandas==2.3.3
+scikit-learn==1.6.1

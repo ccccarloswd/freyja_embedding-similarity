@@ -1,0 +1,23 @@
+# Environments and caches
+.venv/
+.venv-ml/
+__pycache__/
+
+# Third-party code and documents (not my work)
+warpgate/
+docs/freyja.pdf
+
+# Personal working notes (the English docs/ replace them)
+docs/protocolo.md
+
+# Data: only derived data is published (see data/README.md)
+data/raw/
+data/modelos/
+data/inventario_lb_opendata.csv
+data/experimento/distancias_freyjabm.csv
+data/experimento/salida_*.txt
+data/criba/pares_opendata.pkl
+data/criba/predicciones/
+data/informe/*.png
+*.log
+data/**/log_*.txt

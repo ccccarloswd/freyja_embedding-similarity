@@ -1,0 +1,3 @@
+embedding,mae_modelo,mae_media,r2,spearman_por_consulta,precision_10,precision_10_azar,sesgo_zona_alta
+WarpGate (TaBERT),0.059 (0.008),0.074 (0.013),0.321 (0.060),0.465 (0.101),0.306 (0.038),0.083 (0.013),-0.082 (0.015)
+MPNet,0.107 (0.007),0.126 (0.012),0.281 (0.052),0.388 (0.075),0.264 (0.041),0.083 (0.013),-0.226 (0.028)
