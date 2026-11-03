@@ -268,25 +268,25 @@ Design D35. 444 tables (one per family), single 60/20/20 split by table. Pairs: 
 
 | Model | Config | Time | Trees | R² train | R² val | Spearman val | R² test | Spearman test | P@10 test | MAE test |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Mean (baseline) | A | 0 s |  | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.010 | 0.123 |
+| Mean (baseline) | A | 0 s |  | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.008 | 0.123 |
 | GradientBoosting (FREYJA settings) | A | 4.6 min |  | 0.433 | 0.381 | 0.474 | 0.403 | 0.527 | 0.176 | 0.094 |
-| RandomForest | A | 14.0 min |  | 0.971 | 0.429 | 0.524 | 0.458 | 0.552 | 0.144 | 0.087 |
-| RandomForest | B | 3.7 min |  | 0.897 | 0.468 | **0.560** | 0.495 | 0.584 | 0.163 | 0.085 |
-| RandomForest | C | 2.7 min |  | 0.764 | 0.458 | 0.551 | 0.490 | 0.577 | 0.157 | 0.085 |
-| ExtraTrees | A | 5.7 min |  | 0.999 | 0.469 | 0.556 | 0.504 | 0.594 | 0.176 | 0.084 |
-| ExtraTrees | B | 1.4 min |  | 0.840 | 0.441 | 0.537 | 0.480 | 0.586 | 0.176 | 0.086 |
-| ExtraTrees | C | 43 s |  | 0.599 | 0.414 | 0.521 | 0.457 | 0.579 | 0.177 | 0.089 |
-| HistGradientBoosting | A | 3.0 min | 5,000 | 0.841 | 0.445 | 0.550 | 0.455 | 0.553 | 0.156 | 0.088 |
-| HistGradientBoosting | B | 2.9 min | 5,000 | 0.738 | 0.442 | 0.545 | 0.460 | 0.561 | 0.153 | 0.087 |
-| HistGradientBoosting | C | 4.6 min | 5,000 | 0.896 | 0.458 | 0.559 | 0.466 | 0.563 | 0.154 | 0.087 |
-| XGBoost | A | 4 s | 122 | 0.675 | 0.420 | 0.525 | 0.442 | 0.546 | 0.156 | 0.089 |
+| RandomForest | A | 14.0 min |  | 0.971 | 0.429 | 0.524 | 0.458 | 0.552 | 0.143 | 0.087 |
+| RandomForest | B | 3.7 min |  | 0.897 | 0.468 | **0.560** | 0.495 | 0.584 | 0.162 | 0.085 |
+| RandomForest | C | 2.7 min |  | 0.764 | 0.458 | 0.551 | 0.490 | 0.577 | 0.156 | 0.085 |
+| ExtraTrees | A | 5.7 min |  | 0.999 | 0.469 | 0.556 | 0.504 | 0.594 | 0.175 | 0.084 |
+| ExtraTrees | B | 1.4 min |  | 0.840 | 0.441 | 0.537 | 0.480 | 0.586 | 0.175 | 0.086 |
+| ExtraTrees | C | 43 s |  | 0.599 | 0.414 | 0.521 | 0.457 | 0.579 | 0.176 | 0.089 |
+| HistGradientBoosting | A | 3.0 min | 5,000 | 0.841 | 0.445 | 0.550 | 0.455 | 0.553 | 0.155 | 0.088 |
+| HistGradientBoosting | B | 2.9 min | 5,000 | 0.738 | 0.442 | 0.545 | 0.460 | 0.561 | 0.152 | 0.087 |
+| HistGradientBoosting | C | 4.6 min | 5,000 | 0.896 | 0.458 | 0.559 | 0.466 | 0.563 | 0.153 | 0.087 |
+| XGBoost | A | 4 s | 122 | 0.675 | 0.420 | 0.525 | 0.442 | 0.546 | 0.155 | 0.089 |
 | XGBoost | B | 20 s | 692 | 0.582 | 0.419 | 0.517 | 0.462 | 0.561 | 0.162 | 0.088 |
-| XGBoost | C | 37 s | 959 | 0.789 | 0.459 | 0.556 | 0.477 | 0.567 | 0.158 | 0.086 |
-| LightGBM | A | 23 s | 879 | 0.727 | 0.440 | 0.542 | 0.460 | 0.560 | 0.153 | 0.088 |
-| LightGBM | B | 18 s | 734 | 0.608 | 0.422 | 0.520 | 0.472 | 0.564 | 0.155 | 0.087 |
-| LightGBM | C | 1.0 min | 836 | 0.778 | 0.459 | 0.556 | 0.478 | 0.571 | 0.158 | 0.086 |
+| XGBoost | C | 37 s | 959 | 0.789 | 0.459 | 0.556 | 0.477 | 0.567 | 0.157 | 0.086 |
+| LightGBM | A | 23 s | 879 | 0.727 | 0.440 | 0.542 | 0.460 | 0.560 | 0.152 | 0.088 |
+| LightGBM | B | 18 s | 734 | 0.608 | 0.422 | 0.520 | 0.472 | 0.564 | 0.154 | 0.087 |
+| LightGBM | C | 1.0 min | 836 | 0.778 | 0.459 | 0.556 | 0.478 | 0.571 | 0.157 | 0.086 |
 
-Precision@10 in the MPNet table still uses the first version of the metric (ties broken by data order). With MPNet the change is below 0.001 for the four models checked in section 11, and the table will be updated. "Trees" is the number of boosting iterations kept by early stopping. Test numbers are reported for completeness: no decision was based on them.
+Precision@10 is the tie-aware version of section 11, recomputed from the saved test predictions. "Trees" is the number of boosting iterations kept by early stopping. Test numbers are reported for completeness: no decision was based on them.
 
 ### Not run or not completed
 
