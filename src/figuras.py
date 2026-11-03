@@ -5,8 +5,10 @@
     experimento.py (v1, WarpGate y MPNet).
   - Criba de modelos (OpenData): Spearman por consulta en validación de la mejor
     configuración de cada modelo. Usa data/criba/resultados_<embedding>.csv.
+  - Análisis estadístico (src/analisis.py): diferencias entre modelos en test con
+    sus intervalos corregidos, y curvas de aprendizaje.
 
-Uso (entorno .venv-ml):  python src/figuras.py
+Uso (entorno .venv-ml):  python src/figuras.py [--sin-fases]
 Salida: docs/figures/*.png
 """
 import sys
@@ -19,6 +21,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 
+ARGUMENTOS = sys.argv[1:]  # --sin-fases: no rehace los gráficos de las fases 1 y 2
 sys.argv = sys.argv[:1]  # experimento.py lee la variante de los argumentos
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import informe  # noqa: E402
@@ -145,10 +148,75 @@ def criba():
     guardar(figura, "screening_spearman.png")
 
 
+SERIES = {"RandomForest (B)": "#2a78d6", "LightGBM (C)": "#eb6834", "XGBoost (C)": "#1baf7a"}
+MEDIDAS = {"spearman": "Spearman per query", "precision_10": "Precision@10", "r2": "R²"}
+
+
+def diferencias():
+    """Diferencias de RandomForest B con los otros modelos en test, con el intervalo
+    corregido por Bonferroni (36 comparaciones)."""
+    comparaciones = {"RandomForest (B) − LightGBM (C)": "RF − LightGBM",
+                     "RandomForest (B) − XGBoost (C)": "RF − XGBoost",
+                     "RandomForest (B) − GradientBoosting FREYJA": "RF − GB (FREYJA settings)"}
+    figura, ejes = plt.subplots(1, 3, figsize=(11, 3.6), sharey=True)
+    for eje, (medida, titulo) in zip(ejes, MEDIDAS.items()):
+        for desplazamiento, modelo in ((0.15, "warpgate"), (-0.15, "mpnet")):
+            datos = pd.read_csv(DATOS / f"analisis/bootstrap_{modelo}.csv")
+            datos = datos[(datos["medida"] == medida) & datos["comparacion"].isin(comparaciones)]
+            for fila, (clave, _) in enumerate(comparaciones.items()):
+                d = datos[datos["comparacion"] == clave].iloc[0]
+                y = len(comparaciones) - 1 - fila + desplazamiento
+                eje.plot([d["bajo_corregido"], d["alto_corregido"]], [y, y], color=COLORES[modelo],
+                         linewidth=2, solid_capstyle="round")
+                eje.scatter(d["nota"], y, s=45, color=COLORES[modelo], edgecolor=SUPERFICIE,
+                            linewidth=1.5, zorder=3, label=NOMBRES[modelo] if fila == 0 else None)
+        eje.axvline(0, color=TEXTO_2, linewidth=1)
+        eje.set(title=titulo, xlabel="Difference on test")
+        eje.grid(axis="y", visible=False)
+        eje.tick_params(axis="y", length=0)
+    ejes[0].set_yticks(range(len(comparaciones)), list(comparaciones.values())[::-1])
+    figura.legend(*ejes[0].get_legend_handles_labels(), frameon=False, loc="lower left",
+                  fontsize=9, ncol=2, bbox_to_anchor=(0.005, -0.1))
+    figura.suptitle("Paired bootstrap over test tables: RandomForest B against the other models",
+                    x=0.01, ha="left", fontweight="bold", fontsize=12)
+    figura.text(0.01, -0.13, "Dot: difference on the test split. Line: 95 % interval corrected for 36 comparisons "
+                "(Bonferroni). An interval that does not cross 0 is a reliable difference.",
+                color=TEXTO_2, fontsize=8.5)
+    figura.tight_layout()
+    guardar(figura, "analysis_differences.png")
+
+
+def curvas():
+    figura, ejes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+    for eje, modelo in zip(ejes, NOMBRES):
+        datos = pd.read_csv(DATOS / f"analisis/curvas_{modelo}.csv")
+        for nombre, color in SERIES.items():
+            suyos = datos[datos["modelo"] == nombre]
+            resumen = suyos.groupby("fraccion").agg(pares=("pares", "mean"), media=("spearman_validacion", "mean"))
+            eje.scatter(suyos["pares"], suyos["spearman_validacion"], s=14, color=color, alpha=0.35, linewidth=0)
+            eje.plot(resumen["pares"], resumen["media"], color=color, linewidth=2, marker="o", markersize=6,
+                     markeredgecolor=SUPERFICIE, markeredgewidth=1.5, label=nombre)
+        eje.set_xscale("log")
+        eje.set_xticks([5e4, 1e5, 2e5, 4e5, 6.2e5], ["50k", "100k", "200k", "400k", "620k"])
+        eje.minorticks_off()
+        eje.set(title=NOMBRES[modelo], xlabel="Training pairs (log scale)",
+                ylabel="Spearman per query (validation)")
+    ejes[0].legend(frameon=False, loc="lower right")
+    figura.suptitle("Learning curves: about +0.01 per doubling of the data", x=0.01, ha="left",
+                    fontweight="bold", fontsize=12)
+    figura.text(0.01, -0.03, "10, 25 and 50 % of the training tables with 3 seeds each (light dots), "
+                "and the full training set from the screening.", color=TEXTO_2, fontsize=8.5)
+    figura.tight_layout()
+    guardar(figura, "analysis_learning_curves.png")
+
+
 def main():
     SALIDA.mkdir(parents=True, exist_ok=True)
     criba()
-    fases_1_y_2()
+    diferencias()
+    curvas()
+    if "--sin-fases" not in ARGUMENTOS:
+        fases_1_y_2()
 
 
 if __name__ == "__main__":

@@ -75,3 +75,11 @@ How the project evolved. Decision numbers refer to [methodology.md](methodology.
 - The five models are within 0.004 of each other (best RandomForest B, 0.560).
 - ExtraTrees moves from last (WarpGate) to almost first.
 - The ceiling appears again, at about 0.56.
+
+**2 November. Publication.** Repository published with English documentation and figures.
+
+**3 November. Statistical analysis.**
+- RandomForest B chosen on validation with rule D15 (D36). The test only describes.
+- Found that Precision@10 depended on how ties were broken. Replaced by its expected value under random tie-breaking, in the analysis and in the screening results.
+- Paired bootstrap over the 89 test tables with Bonferroni-corrected intervals: RandomForest B is never worse than LightGBM or XGBoost and better with MPNet. The gain over FREYJA's model is solid in R² and uneven in ranking.
+- Learning curves with 10, 25, 50 and 100 % of the training tables: about +0.01 of Spearman per doubling of the data, with the three models rising in parallel.

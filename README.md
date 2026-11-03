@@ -19,7 +19,8 @@ This repository contains the full experimental pipeline, results and design log 
 | **Embeddings** | 2 very different models: WarpGate (TaBERT-K3, 1,024 dims, column name + 3 rows) and MPNet (`all-mpnet-base-v2`, 768 dims, column name + distinct values) |
 | **Scale** | 2.3 million column pairs on OpenData, 35 features per pair, 13 regressor families reviewed, 8 models trained, 36 model runs |
 | **Answer so far** | **Yes, moderately.** Profiles explain 28 to 50 % of the variance of the cosine and recover 3 to 4 times more of the true top-10 candidates than a random ranking. The signal is stable across folds, data lakes and embedding models |
-| **Main finding** | Models with very different inductive biases (bagging, boosting, neural networks) all converge to the **same ceiling** (Spearman ≈ 0.55). The bottleneck is the information in the profiles, not the learning algorithm |
+| **Main finding** | Models with very different inductive biases (bagging, boosting, neural networks) all converge to the **same ceiling** (Spearman ≈ 0.55), and learning curves add only about +0.01 per doubling of the data. The bottleneck is the information in the profiles, not the learning algorithm or the amount of data |
+| **Chosen model** | RandomForest, selected on validation only. A paired bootstrap over test tables confirms it is never worse than LightGBM or XGBoost and clearly better with MPNet. Against FREYJA's own model it predicts the cosine much better (R² +0.06 to +0.09) |
 
 <p align="center">
   <img src="docs/figures/screening_spearman.png" width="900" alt="Model screening results">
@@ -117,7 +118,7 @@ For the second embedding I used DeepJoin's serialisation (`"<table>.csv informat
 
 ## 5. Methodology: how I kept the results honest
 
-Every decision is recorded with its rationale in [`docs/methodology.md`](docs/methodology.md) (35 numbered decisions). The most important ones:
+Every decision is recorded with its rationale in [`docs/methodology.md`](docs/methodology.md) (36 numbered decisions). The most important ones:
 
 - **No leakage between train and test.** Splits are made by **table** (and by **family** of near-duplicate tables on OpenData: same header, or a shared column with identical content), never by pair. Pairs are formed only inside each side.
 - **Same-table pairs are excluded.** Columns created by the same author share formatting habits that could make unrelated columns look similar.
@@ -126,6 +127,7 @@ Every decision is recorded with its rationale in [`docs/methodology.md`](docs/me
 - **Trivial baselines.** The cosine moves in a narrow band, so a small error means nothing on its own. R² is computed against the training mean, and FREYJA's Gradient Boosting with its published settings is the reference model.
 - **Model selection on validation only.** Configurations and winners are chosen on a separate validation split. The test split never takes part in a decision, which avoids the "winner's curse".
 - **Fair model comparison.** Each candidate gets three configurations covering different regimes (A defaults, B constrained, C high-capacity). Early stopping is driven by the validation split. Train-versus-validation gaps are tracked to detect memorisation (Random Forest with defaults reaches R² 0.95 on train but 0.33 on validation, and constraining it improves validation).
+- **Honest uncertainty.** Test results come with paired bootstrap intervals over **tables** (columns of one table are not independent), corrected for the 36 comparisons reported (Bonferroni).
 - **Reproducibility.** Fixed seeds, cached intermediate results, and two isolated environments with pinned versions.
 
 ## 6. Results
@@ -176,7 +178,7 @@ Best configuration per model, chosen on validation, then evaluated **once** on t
 | KNeighbors | 16 min | 0.360 | 0.208 | not run | not run |
 | *GradientBoosting, FREYJA settings* | 5 min | *0.486* | *0.329* | *0.474* | *0.403* |
 
-Train times are for the WarpGate run. On the test split the best models raise R² from 0.33 to 0.39 (WarpGate) and from 0.40 to 0.50 (MPNet), and Precision@10 from 0.125 to 0.147 with WarpGate. Among 1,200 candidates per query, a random ranking would score about 0.008.
+Train times are for the WarpGate run. On the test split the best models raise R² from 0.33 to 0.39 (WarpGate) and from 0.40 to 0.50 (MPNet), and Precision@10 from 0.114 to 0.140 with WarpGate. Among 1,200 candidates per query, a random ranking would score about 0.008. Precision@10 counts ties as if they were broken at random: FREYJA's model gives the same score to many candidates (a tie at rank 10 in 42 % of the queries with WarpGate), so breaking ties by data order made the metric arbitrary.
 
 **What the screening shows:**
 
@@ -185,17 +187,37 @@ Train times are for the WarpGate run. On the test split the best models raise R�
 3. **Over- and under-fitting behave as theory predicts.** Random Forest improves when constrained (it memorises with defaults). ExtraTrees gets worse when constrained (its random splits need deep trees). RealMLP shows a tiny train-validation gap (0.05), which points to under-capacity rather than over-fitting.
 4. **Cost matters.** LightGBM and XGBoost reach the top group in seconds, about 1,000 times faster than RealMLP, which fits FREYJA's lightweight philosophy.
 
+### 6.3 Choosing a model and measuring the uncertainty
+
+**Choice on validation only.** The selection rule fixed at the start of the project (D15) says: the best validation Spearman wins, and within 0.01 the simplest model wins, with Random Forest considered simpler than boosting. RandomForest B is the best on validation with both embeddings, so it is chosen without looking at the test split (D36). The test only describes.
+
+**Paired bootstrap over test tables.** The 89 test tables are resampled with replacement 20,000 times, and every model is evaluated on the same resampled tables. The interval of each model on its own is wide (±0.04 Spearman, because some tables are easy and others hard for every model), but the *differences* between models are much tighter, because that effect cancels out. Intervals are corrected for the 36 comparisons reported.
+
+<p align="center">
+  <img src="docs/figures/analysis_differences.png" width="900" alt="Paired bootstrap differences">
+</p>
+
+- **RandomForest B is never worse** than LightGBM or XGBoost, and with MPNet it is reliably better (Spearman +0.014 to +0.017, R² +0.018).
+- **Against FREYJA's model the gain is solid on the value** (R² +0.06 with WarpGate, +0.09 with MPNet) **and uneven on the order**: reliable with MPNet (Spearman +0.06), not demonstrated with WarpGate (+0.01, the interval crosses 0). With WarpGate the new models do find more of the true top 10 (+0.025). With MPNet FREYJA's model seems slightly better at the top 10, but the difference is not reliable.
+
+**Learning curves.** Training on 10, 25 and 50 % of the training tables (3 seeds each) shows whether more data would help:
+
+<p align="center">
+  <img src="docs/figures/analysis_learning_curves.png" width="850" alt="Learning curves">
+</p>
+
+The curves are not flat, but the returns diminish: each doubling of the data adds about 0.01 of Spearman, and the three models rise in parallel (none of them is data-hungry). Reaching 0.65 would need several hundred times more tables. The ceiling is not a wall but very slow growth, and the realistic way to move it is **better profiles**.
+
 ## 7. Limitations and open threads
 
 I prefer to state these explicitly rather than let the headline numbers speak alone:
 
-- **No significance tests yet.** The differences among the top models are within 0.01 and may be noise. The next step is a paired Wilcoxon test over query columns, bootstrap confidence intervals over test tables and learning curves (25/50/100 % of the training data).
+- **A single test split of 89 tables.** The paired bootstrap quantifies the uncertainty, but a second, independent data lake would make the conclusions stronger.
 - **Validation versus test gap.** The gain over the reference is clear on validation (+0.07 Spearman) but small on test with WarpGate (+0.01). Validation compares each column with 100 random candidates and test with all of them (about 1,200), which is a harder ranking problem, and the chosen configurations are slightly optimistic on the data used to choose them.
 - **Profiles cannot see meaning.** When two columns have almost identical values and differ only by their name (demonyms versus languages), their profiles are almost identical and no profile-based model can separate them. Part of the target is unreachable by construction.
 - **Some models were not fully evaluated.** EBM with default interactions was stopped after 5.5 hours without finishing. CatBoost could not be loaded because the operating system's application control policy blocks its native library. HistGradientBoosting reached its 5,000-iteration cap with MPNet before early stopping triggered.
-- **Single split on OpenData**, justified by the 444 independent tables and compensated by the planned paired comparison.
 
-**Next steps:** the statistical analysis above, a short tuning of the chosen model, predicting the Euclidean distance and dot product on **unnormalised** vectors (with unit vectors all three measures rank pairs identically), giving more weight to highly similar pairs during training only, and richer profiles.
+**Next steps:** a short tuning of the chosen model, predicting the Euclidean distance and dot product on **unnormalised** vectors (with unit vectors all three measures rank pairs identically), giving more weight to highly similar pairs during training only, and richer profiles.
 
 ## 8. Repository structure
 
@@ -204,7 +226,7 @@ I prefer to state these explicitly rather than let the headline numbers speak al
 ├── requirements-embeddings.txt   # environment for TaBERT and MPNet (numpy 1.x)
 ├── requirements-ml.txt           # environment for the models (numpy 2.x)
 ├── docs/
-│   ├── methodology.md            # every design decision (D1 to D35) with its rationale
+│   ├── methodology.md            # every design decision (D1 to D36) with its rationale
 │   ├── results.md                # all results, including intermediate and discarded ones
 │   ├── data.md                   # data sources, selection funnels and known risks
 │   ├── timeline.md               # chronological log of the project
@@ -217,6 +239,7 @@ I prefer to state these explicitly rather than let the headline numbers speak al
 │   ├── comparar_modelos.py       # preliminary model comparison on FREYJABM (nested CV)
 │   ├── seleccion_opendata.py     # families and selection of LakeBench OpenData
 │   ├── criba.py                  # model screening on OpenData (3 configurations per model)
+│   ├── analisis.py               # paired bootstrap over tables and learning curves
 │   ├── figuras.py                # figures of this README
 │   ├── sinonimos.py              # synonym dictionary learned from shared column content
 │   └── inventario.py, repos_gittables.py, familias.py, lake_limpio.py, particion.py
@@ -247,12 +270,14 @@ Profiles and embeddings are already in `data/`, so the modelling steps can be ru
 python src/experimento.py v1 warpgate        # phase 1 (5-fold CV on FREYJABM)
 python src/experimento.py v1 mpnet           # phase 2
 python src/criba.py warpgate todas           # model screening on OpenData
+python src/analisis.py warpgate              # bootstrap intervals on the test split
+python src/analisis.py warpgate curvas       # learning curves
 python src/figuras.py                        # figures
 ```
 
 ## 10. Further documentation
 
-- [`docs/methodology.md`](docs/methodology.md): principles, the 35 design decisions and the reasoning behind pair sampling, metrics and model choice.
+- [`docs/methodology.md`](docs/methodology.md): principles, the 36 design decisions and the reasoning behind pair sampling, metrics and model choice.
 - [`docs/results.md`](docs/results.md): every result, fold by fold, including the preliminary ones.
 - [`docs/data.md`](docs/data.md): the data lakes I evaluated, why GitTables was explored and then replaced, and the known risks and biases.
 - [`docs/timeline.md`](docs/timeline.md): how the project evolved, day by day.

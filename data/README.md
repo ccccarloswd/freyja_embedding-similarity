@@ -13,7 +13,10 @@ Only derived data is included: profiles, embeddings, selections and results. The
 | `experimento/predicciones_freyjabm_*` | Cross-validation predictions of phases 1 and 2 (one value per pair, empty for pairs that are never tested) | `src/experimento.py` |
 | `experimento/importancias_freyjabm_*` | Tree and permutation importances per fold | `src/experimento.py` |
 | `experimento/modelos_freyjabm_*` | Preliminary model comparison on FREYJABM, per fold | `src/comparar_modelos.py` |
-| `criba/resultados_warpgate.csv`, `criba/resultados_mpnet.csv` | Model screening on OpenData: time, trees, R² (train, validation, test), Spearman, Precision@10 and MAE for each model and configuration | `src/criba.py` |
+| `criba/resultados_warpgate.csv`, `criba/resultados_mpnet.csv` | Model screening on OpenData: time, trees, R² (train, validation, test), Spearman, Precision@10 (tie-aware, recomputed from the saved test predictions) and MAE for each model and configuration | `src/criba.py` |
+| `analisis/notas_por_consulta_*.csv` | Test scores of RandomForest B, LightGBM C, XGBoost C and FREYJA's model for each query column (Spearman, tie-aware Precision@10, error sums for R²) | `src/analisis.py` |
+| `analisis/bootstrap_*.csv` | Paired bootstrap over test tables: score of each model and of each difference, with 95 % and Bonferroni-corrected intervals | `src/analisis.py` |
+| `analisis/curvas_*.csv` | Learning curves: validation and training scores with 10, 25, 50 and 100 % of the training tables | `src/analisis.py curvas` |
 | `informe/resumen.csv` | Summary metrics of phases 1 and 2 | `src/informe.py` |
 
 ## Excluded and how to regenerate

@@ -158,12 +158,35 @@ def spearman_por_consulta(pares, prediccion):
     return float(np.mean(valores))
 
 
+def peso_en_el_top(valores, k):
+    """Probabilidad de que cada candidata quede entre las k primeras si los empates
+    se deshacen al azar. Las que están claramente dentro valen 1 y las de fuera 0.
+    Las empatadas en la frontera se reparten las plazas que quedan: por ejemplo, 2
+    plazas para 4 empatadas dan 0,5 a cada una."""
+    k = min(k, len(valores))
+    frontera = np.sort(valores)[::-1][k - 1]  # valor de la candidata en el puesto k
+    dentro = valores > frontera
+    empatadas = valores == frontera
+    peso = dentro.astype(float)
+    peso[empatadas] = (k - dentro.sum()) / empatadas.sum()
+    return peso
+
+
+def precision_con_empates(real, prediccion, k):
+    """Precision@k esperada si los empates (en el coseno real y en la predicción) se
+    deshacen al azar. Los dos desempates son independientes, así que la probabilidad
+    de que una candidata esté en los dos top-k es el producto de sus dos pesos."""
+    return float((peso_en_el_top(real, k) * peso_en_el_top(prediccion, k)).sum() / k)
+
+
 def precision_en_k(pares, prediccion):
+    """Precision@K media de las columnas consulta, con los empates deshechos al azar
+    (versión esperada). La primera versión de la criba deshacía los empates por el
+    orden de los datos, lo que daba resultados arbitrarios con modelos que empatan mucho."""
     aciertos = []
     for _, grupo in pares.assign(p=prediccion).groupby("consulta"):
         if len(grupo) >= MIN_CANDIDATAS:
-            reales = set(grupo.nlargest(K, "coseno")["candidata"])
-            aciertos.append(len(reales & set(grupo.nlargest(K, "p")["candidata"])) / K)
+            aciertos.append(precision_con_empates(grupo["coseno"].to_numpy(), grupo["p"].to_numpy(), K))
     return float(np.mean(aciertos))
 
 

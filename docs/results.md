@@ -7,7 +7,7 @@ All results of the project, in the order in which they were obtained, including 
 **Metrics used throughout.**
 - **R²** against the mean of the training split: the share of the cosine's variance the model explains. 0 means "no better than predicting the mean".
 - **Spearman per query column** (main metric, D15): for each query column with at least 5 candidates, the rank correlation between the real and the predicted cosine of its candidates, averaged over query columns.
-- **Precision@10:** for each query column, the fraction of its 10 most similar candidates (by the embedding) that the model also places in its top 10.
+- **Precision@10:** for each query column, the fraction of its 10 most similar candidates (by the embedding) that the model also places in its top 10. On OpenData it is the expected value when ties are broken at random (see section 11).
 - **MAE:** mean absolute error. Not comparable across embeddings, whose cosine ranges differ.
 
 ## Contents
@@ -22,6 +22,7 @@ All results of the project, in the order in which they were obtained, including 
 8. [Additional metrics and error by similarity range](#8-additional-metrics-and-error-by-similarity-range)
 9. [Preliminary model comparison on FREYJABM](#9-preliminary-model-comparison-on-freyjabm)
 10. [Model screening on LakeBench OpenData](#10-model-screening-on-lakebench-opendata)
+11. [Statistical analysis of the screening](#11-statistical-analysis-of-the-screening)
 
 ## 1. How the WarpGate embedding is computed
 
@@ -243,25 +244,25 @@ Design D35. 444 tables (one per family), single 60/20/20 split by table. Pairs: 
 
 | Model | Config | Time | Trees | R² train | R² val | Spearman val | R² test | Spearman test | P@10 test | MAE test |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Mean (baseline) | A | 0 s |  | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.010 | 0.061 |
-| GradientBoosting (FREYJA settings) | A | 4.7 min |  | 0.311 | 0.283 | 0.486 | 0.329 | 0.563 | 0.125 | 0.049 |
-| RandomForest | A | 14.1 min |  | 0.950 | 0.334 | 0.534 | 0.358 | 0.533 | 0.144 | 0.048 |
-| RandomForest | B | 3.6 min |  | 0.827 | 0.354 | **0.552** | 0.391 | 0.573 | 0.147 | 0.046 |
-| RandomForest | C | 2.6 min |  | 0.627 | 0.357 | 0.549 | 0.395 | 0.578 | 0.153 | 0.046 |
-| ExtraTrees | A | 5.9 min |  | 0.993 | 0.285 | 0.501 | 0.359 | 0.543 | 0.155 | 0.048 |
-| ExtraTrees | B | 1.1 min |  | 0.768 | 0.258 | 0.476 | 0.339 | 0.544 | 0.147 | 0.048 |
-| ExtraTrees | C | 35 s |  | 0.495 | 0.255 | 0.461 | 0.335 | 0.551 | 0.142 | 0.049 |
-| HistGradientBoosting | A | 1.5 min | 2,330 | 0.719 | 0.333 | 0.533 | 0.346 | 0.535 | 0.150 | 0.049 |
-| HistGradientBoosting | B | 2.6 min | 5,000 | 0.653 | 0.342 | 0.536 | 0.364 | 0.547 | 0.147 | 0.048 |
-| HistGradientBoosting | C | 2.4 min | 2,761 | 0.799 | 0.337 | 0.539 | 0.350 | 0.539 | 0.145 | 0.048 |
-| XGBoost | A | 3 s | 67 | 0.520 | 0.342 | 0.522 | 0.367 | 0.542 | 0.143 | 0.048 |
-| XGBoost | B | 13 s | 610 | 0.459 | 0.349 | 0.536 | 0.382 | 0.570 | 0.139 | 0.047 |
-| XGBoost | C | 8 s | 228 | 0.553 | 0.362 | 0.546 | 0.389 | 0.568 | 0.145 | 0.047 |
-| LightGBM | A | 11 s | 431 | 0.586 | 0.356 | 0.540 | 0.373 | 0.557 | 0.143 | 0.047 |
-| LightGBM | B | 11 s | 450 | 0.467 | 0.346 | 0.535 | 0.378 | 0.568 | 0.140 | 0.047 |
-| LightGBM | C | 12 s | 226 | 0.592 | 0.360 | 0.549 | 0.387 | 0.569 | 0.147 | 0.047 |
-| RealMLP | A | 2.8 h |  | 0.355 | 0.310 | 0.493 | 0.319 | 0.550 | 0.118 | 0.049 |
-| KNeighbors | A | 16.3 min |  | 0.993 | 0.129 | 0.360 | 0.208 | 0.400 | 0.128 | 0.054 |
+| Mean (baseline) | A | 0 s |  | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.008 | 0.061 |
+| GradientBoosting (FREYJA settings) | A | 4.7 min |  | 0.311 | 0.283 | 0.486 | 0.329 | 0.563 | 0.114 | 0.049 |
+| RandomForest | A | 14.1 min |  | 0.950 | 0.334 | 0.534 | 0.358 | 0.533 | 0.136 | 0.048 |
+| RandomForest | B | 3.6 min |  | 0.827 | 0.354 | **0.552** | 0.391 | 0.573 | 0.139 | 0.046 |
+| RandomForest | C | 2.6 min |  | 0.627 | 0.357 | 0.549 | 0.395 | 0.578 | 0.145 | 0.046 |
+| ExtraTrees | A | 5.9 min |  | 0.993 | 0.285 | 0.501 | 0.359 | 0.543 | 0.147 | 0.048 |
+| ExtraTrees | B | 1.1 min |  | 0.768 | 0.258 | 0.476 | 0.339 | 0.544 | 0.140 | 0.048 |
+| ExtraTrees | C | 35 s |  | 0.495 | 0.255 | 0.461 | 0.335 | 0.551 | 0.134 | 0.049 |
+| HistGradientBoosting | A | 1.5 min | 2,330 | 0.719 | 0.333 | 0.533 | 0.346 | 0.535 | 0.143 | 0.049 |
+| HistGradientBoosting | B | 2.6 min | 5,000 | 0.653 | 0.342 | 0.536 | 0.364 | 0.547 | 0.140 | 0.048 |
+| HistGradientBoosting | C | 2.4 min | 2,761 | 0.799 | 0.337 | 0.539 | 0.350 | 0.539 | 0.138 | 0.048 |
+| XGBoost | A | 3 s | 67 | 0.520 | 0.342 | 0.522 | 0.367 | 0.542 | 0.136 | 0.048 |
+| XGBoost | B | 13 s | 610 | 0.459 | 0.349 | 0.536 | 0.382 | 0.570 | 0.131 | 0.047 |
+| XGBoost | C | 8 s | 228 | 0.553 | 0.362 | 0.546 | 0.389 | 0.568 | 0.138 | 0.047 |
+| LightGBM | A | 11 s | 431 | 0.586 | 0.356 | 0.540 | 0.373 | 0.557 | 0.136 | 0.047 |
+| LightGBM | B | 11 s | 450 | 0.467 | 0.346 | 0.535 | 0.378 | 0.568 | 0.133 | 0.047 |
+| LightGBM | C | 12 s | 226 | 0.592 | 0.360 | 0.549 | 0.387 | 0.569 | 0.139 | 0.047 |
+| RealMLP | A | 2.8 h |  | 0.355 | 0.310 | 0.493 | 0.319 | 0.550 | 0.111 | 0.049 |
+| KNeighbors | A | 16.3 min |  | 0.993 | 0.129 | 0.360 | 0.208 | 0.400 | 0.120 | 0.054 |
 
 ### MPNet
 
@@ -285,7 +286,7 @@ Design D35. 444 tables (one per family), single 60/20/20 split by table. Pairs: 
 | LightGBM | B | 18 s | 734 | 0.608 | 0.422 | 0.520 | 0.472 | 0.564 | 0.155 | 0.087 |
 | LightGBM | C | 1.0 min | 836 | 0.778 | 0.459 | 0.556 | 0.478 | 0.571 | 0.158 | 0.086 |
 
-"Trees" is the number of boosting iterations kept by early stopping. Test numbers are reported for completeness: no decision was based on them.
+Precision@10 in the MPNet table still uses the first version of the metric (ties broken by data order). With MPNet the change is below 0.001 for the four models checked in section 11, and the table will be updated. "Trees" is the number of boosting iterations kept by early stopping. Test numbers are reported for completeness: no decision was based on them.
 
 ### Not run or not completed
 
@@ -304,12 +305,61 @@ Design D35. 444 tables (one per family), single 60/20/20 split by table. Pairs: 
    - XGBoost and LightGBM improve with larger trees (C).
    - RealMLP has a tiny train-validation gap (0.05), which suggests under-capacity rather than over-fitting. Configuration C (a wider network) would test this.
    - HistGradientBoosting hit its 5,000-iteration cap without early stopping in 4 of 6 runs. It may be slightly under-trained, although configuration C with WarpGate, which did stop on its own, reached the same level.
-5. **Against FREYJA's reference.** On the test split, the best models clearly improve R² (WarpGate 0.329 → 0.391, MPNet 0.403 → 0.495) and, with WarpGate, Precision@10 (0.125 → 0.147). The Spearman per query improves little on test with WarpGate (0.563 → 0.573), and with MPNet FREYJA's reference ties for the best Precision@10 (0.176). The new models predict the value of the cosine better, but they do not necessarily find the top-10 columns better.
+5. **Against FREYJA's reference.** On the test split, the best models clearly improve R² (WarpGate 0.329 → 0.391, MPNet 0.403 → 0.495) and, with WarpGate, Precision@10 (0.114 → 0.140). The Spearman per query improves little on test with WarpGate (0.563 → 0.573), and with MPNet FREYJA's reference has the best Precision@10 (0.176 against 0.162). The new models predict the value of the cosine better, but they do not necessarily find the top-10 columns better. Section 11 checks which of these differences are reliable.
 6. **Validation versus test.** The gain over the reference is much larger on validation (+0.07 Spearman) than on test with WarpGate (+0.01). Two plausible reasons: validation ranks 100 random candidates per column while test ranks all of them (about 1,200), and the chosen configurations are slightly optimistic on the data used to choose them. The planned paired tests will tell which differences are real.
 
-### Next analysis (planned)
+## 11. Statistical analysis of the screening
 
-- Paired Wilcoxon test over query columns between the top models and against the reference.
-- Bootstrap confidence intervals over test tables.
-- Learning curves (25, 50 and 100 % of the training data), to check whether any model is data-hungry.
-- Then: choose with rule D15, run a short tuning of the winner, and move on to the other targets (Euclidean distance and dot product on unnormalised vectors) and to weighting highly similar pairs during training.
+`src/analisis.py`. Models analysed: the best configuration of the three leading models on validation (RandomForest B, LightGBM C, XGBoost C) and FREYJA's model as the reference.
+
+### 11.1 Choice of the model (D36)
+
+Rule D15 on the validation scores already saved by the screening: the highest Spearman per query wins, and within 0.01 the simplest wins, with Random Forest considered simpler than boosting. RandomForest B is the best on validation with both embeddings (0.552 and 0.560), so it is chosen. The test split takes no part in the choice and is used only to describe.
+
+### 11.2 Scores per query column and per table
+
+The test has 1,277 query columns in 89 tables (median of 9 query columns per table, maximum 220). Spearman and R² recomputed column by column match the screening to the fourth decimal.
+
+**Ties in Precision@10.** The first version of the metric broke ties by data order. Ties at rank 10 with WarpGate occur in 62 queries for the real cosine (duplicated columns), in 76 for RandomForest B and in **538 (42 %) for FREYJA's model**, whose 100 trees of depth 3 produce few distinct values. The metric is now the **expected Precision@10 if ties are broken at random**: a candidate tied at the boundary counts in proportion to the remaining places (2 places for 4 tied candidates give 0.5 each), on both sides. A constant prediction then scores exactly the random rate (0.0083). With WarpGate all scores drop by about 0.007 to 0.010. With MPNet they barely change, and FREYJA's model keeps its 0.176, so its advantage there was not caused by ties. The screening results were recomputed with this version from the saved test predictions.
+
+### 11.3 Paired bootstrap over test tables
+
+The 89 test tables are resampled with replacement 20,000 times. In each repetition every model is evaluated on the same tables (a paired comparison), and each metric is recomputed exactly as the original score: the mean over all query columns of the chosen tables for Spearman and Precision@10, and the ratio of summed errors for R². Intervals of differences are reported at 95 % and corrected by Bonferroni for the 36 comparisons presented (6 pairs of models × 3 metrics × 2 embeddings, 99.86 % intervals). A difference is reliable if its corrected interval excludes 0.
+
+| Comparison on test | WarpGate | MPNet |
+|---|---|---|
+| RandomForest B − LightGBM C, Spearman | +0.004 [−0.005, +0.014] | **+0.013 [+0.004, +0.019]** |
+| RandomForest B − XGBoost C, Spearman | +0.005 [−0.011, +0.018] | **+0.017 [+0.009, +0.023]** |
+| RandomForest B − LightGBM C, R² | +0.004 [−0.005, +0.013] | **+0.018 [+0.010, +0.025]** |
+| RandomForest B − XGBoost C, R² | +0.002 [−0.007, +0.014] | **+0.018 [+0.011, +0.026]** |
+| RandomForest B − LightGBM C, Precision@10 | +0.000 [−0.014, +0.013] | +0.005 [−0.012, +0.017] |
+| RandomForest B − FREYJA, Spearman | +0.010 [−0.013, +0.034] | **+0.057 [+0.045, +0.074]** |
+| RandomForest B − FREYJA, R² | **+0.062 [+0.032, +0.094]** | **+0.092 [+0.072, +0.111]** |
+| RandomForest B − FREYJA, Precision@10 | **+0.025 [+0.001, +0.049]** | −0.014 [−0.034, +0.013] |
+
+Brackets: Bonferroni-corrected intervals. LightGBM C and XGBoost C against FREYJA's model behave like RandomForest B (R² about +0.06 with WarpGate and +0.07 with MPNet, Precision@10 with WarpGate +0.024 and +0.025, all reliable). Between LightGBM and XGBoost there is no reliable difference.
+
+- **RandomForest B is never worse** than the other two leading models, and with MPNet it is reliably better. The choice is confirmed.
+- **Against FREYJA's model, the gain is solid on the value** (R² with both embeddings) **and uneven on the order**: reliable with MPNet, not demonstrated with WarpGate. With WarpGate the new models find more of the true top 10. With MPNet FREYJA's model seems better at the top 10 (it wins in 94 % of the repetitions), but the difference is not reliable.
+- The interval of each model on its own is wide (about ±0.04 of Spearman), because the overall level depends on which tables are in the test: some are easy and others hard for every model. The paired differences are much narrower because that effect cancels out.
+- This replaces the Wilcoxon test planned in D35: both answer the same question, and the bootstrap over tables also respects the dependence between columns of the same table.
+
+### 11.4 Learning curves
+
+The three leading models trained on 10, 25 and 50 % of the training tables (3 random draws of tables each), keeping the pairs whose query column belongs to those tables, so that every column keeps its 100 candidates and the number of pairs falls in the same proportion. Validation is always the same. The 100 % point is the screening run. Spearman per query on validation:
+
+| | 10 % | 25 % | 50 % | 100 % |
+|---|---|---|---|---|
+| Training pairs | about 52,000 | about 158,000 | about 343,000 | 620,686 |
+| WarpGate RandomForest B | 0.500 | 0.532 | 0.543 | 0.552 |
+| WarpGate LightGBM C | 0.495 | 0.536 | 0.541 | 0.549 |
+| WarpGate XGBoost C | 0.486 | 0.533 | 0.542 | 0.547 |
+| MPNet RandomForest B | 0.518 | 0.534 | 0.544 | 0.560 |
+| MPNet LightGBM C | 0.506 | 0.530 | 0.546 | 0.556 |
+| MPNet XGBoost C | 0.511 | 0.530 | 0.547 | 0.556 |
+
+- **The curves are not flat.** Doubling the data from 50 to 100 % still adds between +0.005 and +0.017.
+- **The returns diminish.** Each doubling adds about 0.01. Reaching 0.65 would need 8 to 10 more doublings, several hundred times more tables. The ceiling is not a wall but very slow growth, so the realistic lever is better profiles.
+- **No model is data-hungry.** The three rise in parallel.
+- The 100 % point is slightly optimistic, because the configuration was chosen on this same validation split.
+- RandomForest B memorises (training R² about 0.83 against 0.35 on validation with WarpGate), and the gap does not shrink with more data.
