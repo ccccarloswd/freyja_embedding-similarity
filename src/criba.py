@@ -149,11 +149,12 @@ def anadir_coseno(pares):
 
 # ------------------------------------------------------------------ medidas
 
-def spearman_por_consulta(pares, prediccion):
+def spearman_por_consulta(pares, prediccion, objetivo="coseno"):
+    """'objetivo' es la columna con el valor real (el coseno, salvo en src/objetivos.py)."""
     valores = []
     for _, grupo in pares.assign(p=prediccion).groupby("consulta"):
         if len(grupo) >= MIN_CANDIDATAS:
-            rho = spearmanr(grupo["coseno"], grupo["p"]).correlation
+            rho = spearmanr(grupo[objetivo], grupo["p"]).correlation
             valores.append(0.0 if np.isnan(rho) else rho)
     return float(np.mean(valores))
 
@@ -179,14 +180,14 @@ def precision_con_empates(real, prediccion, k):
     return float((peso_en_el_top(real, k) * peso_en_el_top(prediccion, k)).sum() / k)
 
 
-def precision_en_k(pares, prediccion):
+def precision_en_k(pares, prediccion, objetivo="coseno"):
     """Precision@K media de las columnas consulta, con los empates deshechos al azar
     (versión esperada). La primera versión de la criba deshacía los empates por el
     orden de los datos, lo que daba resultados arbitrarios con modelos que empatan mucho."""
     aciertos = []
     for _, grupo in pares.assign(p=prediccion).groupby("consulta"):
         if len(grupo) >= MIN_CANDIDATAS:
-            aciertos.append(precision_con_empates(grupo["coseno"].to_numpy(), grupo["p"].to_numpy(), K))
+            aciertos.append(precision_con_empates(grupo[objetivo].to_numpy(), grupo["p"].to_numpy(), K))
     return float(np.mean(aciertos))
 
 

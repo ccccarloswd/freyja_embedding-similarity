@@ -18,6 +18,7 @@ data/experimento/distancias_freyjabm.csv
 data/experimento/salida_*.txt
 data/criba/pares_opendata.pkl
 data/criba/predicciones/
+data/objetivos/predicciones/
 data/informe/*.png
 *.log
 data/**/log_*.txt

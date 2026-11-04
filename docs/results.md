@@ -2,7 +2,7 @@
 
 *Author: Carlos Martínez Nievas, Universitat Politècnica de Catalunya (UPC).*
 
-All results of the project, in the order in which they were obtained, including intermediate and preliminary ones. Decision numbers (D1 to D35) refer to [methodology.md](methodology.md).
+All results of the project, in the order in which they were obtained, including intermediate and preliminary ones. Decision numbers (D1 to D38) refer to [methodology.md](methodology.md).
 
 **Metrics used throughout.**
 - **R²** against the mean of the training split: the share of the cosine's variance the model explains. 0 means "no better than predicting the mean".
@@ -23,6 +23,7 @@ All results of the project, in the order in which they were obtained, including 
 9. [Preliminary model comparison on FREYJABM](#9-preliminary-model-comparison-on-freyjabm)
 10. [Model screening on LakeBench OpenData](#10-model-screening-on-lakebench-opendata)
 11. [Statistical analysis of the screening](#11-statistical-analysis-of-the-screening)
+12. [Dot product, norms and each column's own profile](#12-dot-product-norms-and-each-columns-own-profile)
 
 ## 1. How the WarpGate embedding is computed
 
@@ -363,3 +364,131 @@ The three leading models trained on 10, 25 and 50 % of the training tables (3 ra
 - **No model is data-hungry.** The three rise in parallel.
 - The 100 % point is slightly optimistic, because the configuration was chosen on this same validation split.
 - RandomForest B memorises (training R² about 0.83 against 0.35 on validation with WarpGate), and the gap does not shrink with more data.
+
+## 12. Dot product, norms and each column's own profile
+
+`src/objetivos.py`, decisions D37 and D38. Same split as the screening (test: 1,277 query columns in 89 tables). Comparisons use the paired bootstrap over test tables of section 11 (20,000 repetitions), and brackets show Bonferroni-corrected intervals.
+
+### 12.1 Training on the dot product (D37, step 1)
+
+RandomForest B trained on the dot product of the unnormalised vectors. Test:
+
+| | Cosine (screening) | Dot product |
+|---|---|---|
+| WarpGate: R², Spearman, Precision@10 | 0.391, 0.573, 0.139 | 0.272, 0.409, 0.124 |
+| MPNet: R², Spearman, Precision@10 | 0.495, 0.584, 0.162 | 0.545, 0.594, 0.153 |
+
+Comparing scores across targets is only indicative, since each target has its own difficulty. The fair comparisons follow.
+
+### 12.2 Did the new model learn anything beyond the cosine? (steps 2 and 3)
+
+Step 2 ranks the test candidates by the **real dot product** and compares the cosine model (from the screening) with the dot-product model, on ranking metrics only (8 comparisons). Step 3 compares the two models' predictions with each other, without looking at the target.
+
+| | Cosine model | Dot-product model | Difference |
+|---|---|---|---|
+| WarpGate, Spearman | 0.413 | 0.409 | −0.003 [−0.011, +0.010] |
+| WarpGate, Precision@10 | 0.100 | 0.124 | **+0.024 [+0.010, +0.044]** |
+| MPNet, Spearman | 0.582 | 0.594 | **+0.012 [+0.006, +0.017]** |
+| MPNet, Precision@10 | 0.155 | 0.153 | −0.002 [−0.009, +0.005] |
+
+Agreement between the two models (mean per query column): Spearman 0.90 and shared top 10 of 0.42 with WarpGate, 0.96 and 0.61 with MPNet.
+
+- With WarpGate, the drop seen in 12.1 comes from the target being harder, not from the model learning worse: both models rank the dot product equally well overall. The dot-product model reshapes the top of the ranking and finds more of the true top 10.
+- With MPNet the two models are almost the same, and the dedicated model is slightly better overall.
+- Training on the dot product adds little, but not nothing.
+
+### 12.3 Do profiles know the norm? (step 4)
+
+One row per column (5,239), the 30 numeric metrics of its own profile as input and the norm of its vector as the target. RandomForest B, same split by table.
+
+| | WarpGate | MPNet |
+|---|---|---|
+| Mean norm (coefficient of variation) | 20.21 (3.4 %) | 2.74 (5.1 %) |
+| R² validation, test | 0.488, 0.512 | 0.511, 0.470 |
+| Spearman test (columns ranked by norm) | 0.749 | 0.675 |
+| Most important metrics (permutation) | `words_cnt_avg`, `len_max_word`, `len_avg_word` | `words_cnt_sd`, `words_cnt_max`, `words_cnt_avg` |
+
+Profiles know a fair amount about the norm, and it is mostly the **length of the text**. The pair model barely uses it because it only sees differences between profiles.
+
+### 12.4 Building the dot product from its parts
+
+Without training anything: predicted cosine (screening model) × predicted norm of A × predicted norm of B, ranked against the real dot product.
+
+| | From parts | Dot-product model | Cosine model |
+|---|---|---|---|
+| WarpGate, Spearman | 0.262 | 0.409 | 0.413 |
+| WarpGate, Precision@10 | 0.106 | 0.124 | 0.100 |
+| MPNet, Spearman | 0.593 | 0.594 | 0.582 |
+| MPNet, Precision@10 | 0.164 | 0.153 | 0.155 |
+
+With MPNet it works: a better top 10 than the dot-product model (+0.012 [+0.001, +0.022]) and better than the cosine model on both metrics. With WarpGate it fails badly (−0.148 Spearman, reliable). To find out why, each predicted piece was replaced by the real one (Spearman per query against the real dot product):
+
+| | WarpGate | MPNet |
+|---|---|---|
+| Real cosine × real norm | 1.000 | 1.000 |
+| Real cosine alone | 0.883 | 0.981 |
+| Real cosine × predicted norm | 0.891 | 0.988 |
+| Predicted cosine × real norm | −0.076 | 0.613 |
+| Correlation between real cosine and candidate norm, within each query | −0.85 | 0.19 |
+
+- **The predicted norm is good:** with the real cosine it even improves the ranking.
+- **The predicted cosine is what fails.** With WarpGate, candidates with a large norm have a lower cosine, so the two effects largely cancel out in the real dot product. Random Forest averages many trees and shrinks its predictions towards the mean: within a query the predicted cosine varies about half as much as the real one. When it is multiplied by the norm, the norm weighs too much and the ranking flips.
+- Multiplying the parts only works when norm and cosine do not offset each other. With WarpGate a model has to learn the balance itself.
+
+### 12.5 Adding each column's own profile (D38)
+
+The pair features go from 35 (FREYJA's comparisons) to 95 (the same 35, plus the 30 numeric metrics of the query column and of the candidate as they are). Same model, pairs and split. Test (12 comparisons):
+
+| | Spearman | Precision@10 | R² |
+|---|---|---|---|
+| Dot product, WarpGate | 0.409 → 0.443, **+0.034 [+0.016, +0.053]** | 0.124 → 0.140, **+0.017 [+0.007, +0.029]** | 0.272 → 0.300, **+0.028 [+0.011, +0.049]** |
+| Dot product, MPNet | 0.594 → 0.626, **+0.032 [+0.022, +0.046]** | 0.153 → 0.174, **+0.021 [+0.002, +0.040]** | 0.545 → 0.563, **+0.018 [+0.007, +0.032]** |
+| Cosine, WarpGate | 0.573 → 0.625, **+0.051 [+0.039, +0.073]** | 0.140 → 0.185, **+0.046 [+0.025, +0.071]** | 0.391 → 0.442, **+0.052 [+0.035, +0.068]** |
+| Cosine, MPNet | 0.584 → 0.616, **+0.031 [+0.024, +0.043]** | 0.162 → 0.168, +0.006 [−0.011, +0.021] | 0.495 → 0.514, **+0.019 [+0.009, +0.030]** |
+
+Validation shows the same picture (Spearman): dot product WarpGate 0.381 → 0.462, MPNet 0.562 → 0.602. Cosine WarpGate 0.552 → 0.620, MPNet 0.560 → 0.597.
+
+- Everything improves except Precision@10 of the cosine with MPNet. The cosine with WarpGate gets the **largest gain of the project**: more than any change of model in the screening (at most +0.017), and about what 30 times more data would give according to the learning curves.
+- The cosine improves at least as much as the dot product, although it has no norm. The likely reason is that the extra features tell the model **what kind of columns** it is comparing: the same profile difference means different things for two columns of short codes and for two columns of long text. This was not tested directly.
+- The model memorises more (training R² 0.90 against 0.41 on validation for the cosine with WarpGate), but validation and test both improve.
+
+Against FREYJA's model (35 features) on test:
+
+| | FREYJA's model | RandomForest B, 95 features |
+|---|---|---|
+| WarpGate: Spearman, Precision@10, R² | 0.563, 0.114, 0.329 | **0.625, 0.185, 0.442** |
+| MPNet: Spearman, Precision@10, R² | 0.527, 0.176, 0.403 | **0.616**, 0.168, **0.514** |
+
+### 12.6 Other models with 95 features
+
+LightGBM C and XGBoost C trained on the same 95 features. Spearman on validation (decides, rule D15):
+
+| | RandomForest B | LightGBM C | XGBoost C |
+|---|---|---|---|
+| Dot product, WarpGate | **0.462** | 0.431 | 0.445 |
+| Dot product, MPNet | **0.602** | 0.599 | 0.589 |
+| Cosine, WarpGate | **0.620** | 0.613 | 0.612 |
+| Cosine, MPNet | 0.597 | 0.598 | 0.592 |
+
+RandomForest B stays the choice in all four cases (for the cosine with MPNet through the 0.01 rule), even though early stopping gives the boosting models a slight advantage on validation. On test (24 comparisons), no difference in Spearman or Precision@10 against RandomForest B is reliable, and they go both ways (−0.014 to +0.014). Only XGBoost's R² with WarpGate is reliably better (about +0.03). LightGBM and XGBoost train in 10 to 60 seconds instead of about 8 minutes, and with WarpGate they stop very early (60 to 140 trees). **The gain comes from the features, not from the model.**
+
+### 12.7 Learning curves with 95 features
+
+WarpGate, RandomForest B, same method as section 11.4. Spearman per query on validation:
+
+| Training tables | Cosine, 35 | Cosine, 95 | Dot product, 35 | Dot product, 95 |
+|---|---|---|---|---|
+| 10 % | 0.500 | 0.614 | 0.325 | 0.421 |
+| 25 % | 0.532 | 0.617 | 0.352 | 0.437 |
+| 50 % | 0.543 | 0.620 | 0.370 | 0.455 |
+| 100 % | 0.552 | 0.620 | 0.381 | 0.462 |
+
+- **Cosine with 95 features: flat.** With 10 % of the tables it already beats the 35-feature model trained on everything. R² still rises a little (0.39 → 0.41), the ranking does not.
+- **Dot product:** about +0.01 per doubling of the data, the same rate with 35 and 95 features. The new features give a jump in level, not a steeper curve.
+- Memorising more does not mean the model needs more data. A Random Forest always fits its training pairs almost perfectly. What is left on validation is the part of the target the profiles cannot explain (two columns with almost the same profile can still have quite different embeddings, because the embedding reads the meaning of the words).
+
+### 12.8 Reading
+
+1. **How the profiles are given to the model matters more than which model is used.** Changing the model moves Spearman by about 0.01. Adding each column's own profile moves it by 0.03 to 0.05. More data does not move it much either.
+2. **Profiles know a fair amount about the embedding norm** (mostly text length). With differences only, the model cannot use it. With the columns' own values, partly.
+3. **The absolute level is still moderate.** With Precision@10 = 0.185, the model finds about 2 of the 10 most similar columns among some 1,200 candidates, 22 times better than random. It does not replace the embedding. It could work as a cheap pre-filter, which has not been measured yet.

@@ -14,13 +14,14 @@ This repository contains the full experimental pipeline, results and design log 
 
 | | |
 |---|---|
-| **Question** | Given two columns A and B, can a model that only sees the differences between their FREYJA profiles predict `cos(E(A), E(B))` for an embedding model `E`? |
+| **Question** | Given two columns A and B, can a model that only sees their FREYJA profiles predict `cos(E(A), E(B))` for an embedding model `E`? And the dot product and the Euclidean distance on unnormalised vectors? |
 | **Data** | 2 data lakes: FREYJABM (160 tables, 680 text columns) and a curated selection of LakeBench OpenData (444 tables from Canada, the USA, Singapore and the UK, 5,241 text columns) |
 | **Embeddings** | 2 very different models: WarpGate (TaBERT-K3, 1,024 dims, column name + 3 rows) and MPNet (`all-mpnet-base-v2`, 768 dims, column name + distinct values) |
-| **Scale** | 2.3 million column pairs on OpenData, 35 features per pair, 13 regressor families reviewed, 8 models trained, 36 model runs |
-| **Answer so far** | **Yes, moderately.** Profiles explain 28 to 50 % of the variance of the cosine and recover 3 to 4 times more of the true top-10 candidates than a random ranking. The signal is stable across folds, data lakes and embedding models |
-| **Main finding** | Models with very different inductive biases (bagging, boosting, neural networks) all converge to the **same ceiling** (Spearman ≈ 0.55), and learning curves add only about +0.01 per doubling of the data. The bottleneck is the information in the profiles, not the learning algorithm or the amount of data |
-| **Chosen model** | RandomForest, selected on validation only. A paired bootstrap over test tables confirms it is never worse than LightGBM or XGBoost and clearly better with MPNet. Against FREYJA's own model it predicts the cosine much better (R² +0.06 to +0.09) |
+| **Scale** | 2.3 million column pairs on OpenData, 35 or 95 features per pair, 13 regressor families reviewed, 8 models trained, more than 50 model runs |
+| **Answer so far** | **Yes, moderately.** On unseen OpenData tables, the best model explains 44 to 51 % of the variance of the cosine and reaches a Spearman per query of 0.62. It finds about 2 of the 10 most similar columns among some 1,200 candidates, 22 times better than random. The signal is stable across folds, data lakes and embedding models |
+| **Main finding** | The learning algorithm barely matters: very different models converge to the **same ceiling**, and more data adds only about +0.01 per doubling. What moves the ceiling is **how the profiles are given to the model**. Adding each column's own profile values to FREYJA's profile differences raises Spearman by up to +0.05 and Precision@10 by up to +0.046, the largest gain of the project |
+| **Chosen model** | RandomForest, selected on validation only, with 35 and with 95 features. Paired bootstraps over test tables show that LightGBM and XGBoost are never reliably better at ranking. Against FREYJA's own model, Precision@10 with WarpGate goes from 0.114 to 0.185 (+62 %) |
+| **Beyond the cosine** | Profiles predict the **norm** of each column's embedding fairly well (R² about 0.5, mostly from text length). The dot product is harder to predict than the cosine with WarpGate, because there norm and cosine offset each other |
 
 <p align="center">
   <img src="docs/figures/screening_spearman.png" width="900" alt="Model screening results">
@@ -61,7 +62,7 @@ $$
 
 - `P` is the FREYJA profile of a column (34 metrics, z-score normalised over the lake).
 - `s` is the serialisation of a column into text, and `E` is an embedding model.
-- `f` is a regression model trained on profile **distances** (FREYJA's own distance function, 34 metrics plus `name_dist`, the Levenshtein distance between column names).
+- `f` is a regression model trained on profile **distances** (FREYJA's own distance function, 34 metrics plus `name_dist`, the Levenshtein distance between column names). Later I also give it each column's own numeric profile values (section 6.4).
 
 **Null hypothesis (H0):** profiles carry no information about the cosine beyond trivial baselines (predicting the mean). The goal is to refute it on unseen columns, unseen tables and several embedding models. Because what matters for discovery is **which candidates come first**, the main metric is the **Spearman correlation per query column**, not a global correlation.
 
@@ -118,7 +119,7 @@ For the second embedding I used DeepJoin's serialisation (`"<table>.csv informat
 
 ## 5. Methodology: how I kept the results honest
 
-Every decision is recorded with its rationale in [`docs/methodology.md`](docs/methodology.md) (36 numbered decisions). The most important ones:
+Every decision is recorded with its rationale in [`docs/methodology.md`](docs/methodology.md) (38 numbered decisions). The most important ones:
 
 - **No leakage between train and test.** Splits are made by **table** (and by **family** of near-duplicate tables on OpenData: same header, or a shared column with identical content), never by pair. Pairs are formed only inside each side.
 - **Same-table pairs are excluded.** Columns created by the same author share formatting habits that could make unrelated columns look similar.
@@ -127,7 +128,7 @@ Every decision is recorded with its rationale in [`docs/methodology.md`](docs/me
 - **Trivial baselines.** The cosine moves in a narrow band, so a small error means nothing on its own. R² is computed against the training mean, and FREYJA's Gradient Boosting with its published settings is the reference model.
 - **Model selection on validation only.** Configurations and winners are chosen on a separate validation split. The test split never takes part in a decision, which avoids the "winner's curse".
 - **Fair model comparison.** Each candidate gets three configurations covering different regimes (A defaults, B constrained, C high-capacity). Early stopping is driven by the validation split. Train-versus-validation gaps are tracked to detect memorisation (Random Forest with defaults reaches R² 0.95 on train but 0.33 on validation, and constraining it improves validation).
-- **Honest uncertainty.** Test results come with paired bootstrap intervals over **tables** (columns of one table are not independent), corrected for the 36 comparisons reported (Bonferroni).
+- **Honest uncertainty.** Test results come with paired bootstrap intervals over **tables** (columns of one table are not independent), corrected for the number of comparisons reported in each analysis (Bonferroni).
 - **Reproducibility.** Fixed seeds, cached intermediate results, and two isolated environments with pinned versions.
 
 ## 6. Results
@@ -208,6 +209,32 @@ Train times are for the WarpGate run. On the test split the best models raise R�
 
 The curves are not flat, but the returns diminish: each doubling of the data adds about 0.01 of Spearman, and the three models rise in parallel (none of them is data-hungry). Reaching 0.65 would need several hundred times more tables. The ceiling is not a wall but very slow growth, and the realistic way to move it is **better profiles**.
 
+### 6.4 Beyond the cosine: norms, the dot product and each column's own profile
+
+With unit vectors the cosine, the dot product and the Euclidean distance rank pairs identically. On **unnormalised** vectors they differ through the **norm** of each embedding, so the next question was whether the profiles know anything about it (D37).
+
+**Profiles know the norm.** Predicting each column's norm from its own 30 numeric profile metrics gives a test R² of 0.51 (WarpGate) and 0.47 (MPNet), almost entirely from **text length** (words per value, word length). But the pair model only sees profile *differences*, and two columns of one word each and two columns of thirty words each give the same difference. The information is in the profiles, but the model never receives it.
+
+**The dot product with WarpGate is a trap.** Training directly on the dot product, the model ranks it no better than the cosine model does (Spearman 0.41 for both). Building it from its parts (predicted cosine × predicted norms) is even worse (0.26). Replacing each predicted part with the real one showed why: within a query, candidates with a large WarpGate norm have a lower cosine (correlation −0.85), so the two effects offset each other. Random Forest shrinks its predictions towards the mean, so after multiplying, the norm weighs too much and the ranking flips. With MPNet norm and cosine are nearly independent (0.19) and building the product from its parts works.
+
+**Giving the model each column's own profile (D38).** I added the 30 numeric metrics of each side of the pair to FREYJA's 35 differences (95 features), with the same model, pairs and split:
+
+| Test (RandomForest B) | Spearman | Precision@10 | R² |
+|---|---|---|---|
+| Cosine, WarpGate | 0.573 → **0.625** | 0.140 → **0.185** | 0.391 → **0.442** |
+| Cosine, MPNet | 0.584 → **0.616** | 0.162 → 0.168 | 0.495 → **0.514** |
+| Dot product, WarpGate | 0.409 → **0.443** | 0.124 → **0.140** | 0.272 → **0.300** |
+| Dot product, MPNet | 0.594 → **0.626** | 0.153 → **0.174** | 0.545 → **0.563** |
+
+Bold: reliable with Bonferroni-corrected paired bootstrap intervals (12 comparisons). Validation moves the same way.
+
+- **It is the largest gain of the project.** For the cosine with WarpGate (+0.051 Spearman, +0.046 Precision@10) it is three times the largest difference between models in the screening.
+- **The cosine benefits as much as the dot product, although it has no norm.** The likely reason is that the model now knows *what kind* of columns it compares: the same difference means something else for two columns of short codes and for two columns of long text.
+- **It is not the model.** LightGBM and XGBoost with the same 95 features are never reliably better at ranking (24 comparisons), and RandomForest B stays the choice on validation in all four cases.
+- **It is not the amount of data either.** With 95 features the learning curve of the cosine is flat: with 10 % of the training tables it already scores 0.614, above the 35-feature model trained on everything (0.552). For the dot product the curve keeps the same slope as before (+0.01 per doubling).
+
+The conclusion sharpens the one from the screening: the bottleneck is the information in the profiles **and the way it reaches the model**, not the algorithm or the data. Full results are in [`docs/results.md`](docs/results.md#12-dot-product-norms-and-each-columns-own-profile).
+
 ## 7. Limitations and open threads
 
 I prefer to state these explicitly rather than let the headline numbers speak alone:
@@ -217,7 +244,9 @@ I prefer to state these explicitly rather than let the headline numbers speak al
 - **Profiles cannot see meaning.** When two columns have almost identical values and differ only by their name (demonyms versus languages), their profiles are almost identical and no profile-based model can separate them. Part of the target is unreachable by construction.
 - **Some models were not fully evaluated.** EBM with default interactions was stopped after 5.5 hours without finishing. CatBoost could not be loaded because the operating system's application control policy blocks its native library. HistGradientBoosting reached its 5,000-iteration cap with MPNet before early stopping triggered.
 
-**Next steps:** a short tuning of the chosen model, predicting the Euclidean distance and dot product on **unnormalised** vectors (with unit vectors all three measures rank pairs identically), giving more weight to highly similar pairs during training only, and richer profiles.
+- **The absolute level is still moderate.** Finding about 2 of the 10 most similar columns is far above random, but the model does not replace the embedding. Whether it works as a cheap pre-filter (keeping the true top 10 within its first 100 candidates, for instance) has not been measured yet.
+
+**Next steps:** predicting the Euclidean distance on unnormalised vectors with the 95-feature model, giving more weight to highly similar pairs during training only, and richer profiles.
 
 ## 8. Repository structure
 
@@ -226,7 +255,7 @@ I prefer to state these explicitly rather than let the headline numbers speak al
 ├── requirements-embeddings.txt   # environment for TaBERT and MPNet (numpy 1.x)
 ├── requirements-ml.txt           # environment for the models (numpy 2.x)
 ├── docs/
-│   ├── methodology.md            # every design decision (D1 to D36) with its rationale
+│   ├── methodology.md            # every design decision (D1 to D38) with its rationale
 │   ├── results.md                # all results, including intermediate and discarded ones
 │   ├── data.md                   # data sources, selection funnels and known risks
 │   ├── timeline.md               # chronological log of the project
@@ -240,6 +269,7 @@ I prefer to state these explicitly rather than let the headline numbers speak al
 │   ├── seleccion_opendata.py     # families and selection of LakeBench OpenData
 │   ├── criba.py                  # model screening on OpenData (3 configurations per model)
 │   ├── analisis.py               # paired bootstrap over tables and learning curves
+│   ├── objetivos.py              # dot product, norms and the 95-feature model (D37, D38)
 │   ├── figuras.py                # figures of this README
 │   ├── sinonimos.py              # synonym dictionary learned from shared column content
 │   └── inventario.py, repos_gittables.py, familias.py, lake_limpio.py, particion.py
@@ -272,12 +302,16 @@ python src/experimento.py v1 mpnet           # phase 2
 python src/criba.py warpgate todas           # model screening on OpenData
 python src/analisis.py warpgate              # bootstrap intervals on the test split
 python src/analisis.py warpgate curvas       # learning curves
+python src/objetivos.py warpgate producto    # model trained on the dot product
+python src/objetivos.py warpgate norma       # predicting each column's norm
+python src/objetivos.py warpgate coseno ampliado            # 95-feature model
+python src/objetivos.py warpgate coseno comparar_ampliado   # 95 against 35 features
 python src/figuras.py                        # figures
 ```
 
 ## 10. Further documentation
 
-- [`docs/methodology.md`](docs/methodology.md): principles, the 36 design decisions and the reasoning behind pair sampling, metrics and model choice.
+- [`docs/methodology.md`](docs/methodology.md): principles, the 38 design decisions and the reasoning behind pair sampling, metrics and model choice.
 - [`docs/results.md`](docs/results.md): every result, fold by fold, including the preliminary ones.
 - [`docs/data.md`](docs/data.md): the data lakes I evaluated, why GitTables was explored and then replaced, and the known risks and biases.
 - [`docs/timeline.md`](docs/timeline.md): how the project evolved, day by day.

@@ -17,6 +17,10 @@ Only derived data is included: profiles, embeddings, selections and results. The
 | `analisis/notas_por_consulta_*.csv` | Test scores of RandomForest B, LightGBM C, XGBoost C and FREYJA's model for each query column (Spearman, tie-aware Precision@10, error sums for R²) | `src/analisis.py` |
 | `analisis/bootstrap_*.csv` | Paired bootstrap over test tables: score of each model and of each difference, with 95 % and Bonferroni-corrected intervals | `src/analisis.py` |
 | `analisis/curvas_*.csv` | Learning curves: validation and training scores with 10, 25, 50 and 100 % of the training tables | `src/analisis.py curvas` |
+| `objetivos/resultados.csv` | Models trained on the dot product and with 95 features (D37, D38): time, trees, R² (train, validation, test), Spearman and Precision@10, per embedding, target and model | `src/objetivos.py` |
+| `objetivos/notas_*.csv`, `objetivos/bootstrap_*.csv` | Scores per query column and paired bootstrap comparisons: cosine model against dot-product model, dot product from its parts, 95 against 35 features, and the three models with 95 features | `src/objetivos.py` |
+| `objetivos/norma.csv`, `objetivos/norma_importancias_*.csv` | Predicting each column's embedding norm from its own profile, with permutation importances | `src/objetivos.py <emb> norma` |
+| `objetivos/curvas_*.csv` | Learning curves with 35 and 95 features (WarpGate) | `src/objetivos.py <emb> <target> curvas` |
 | `informe/resumen.csv` | Summary metrics of phases 1 and 2 | `src/informe.py` |
 
 ## Excluded and how to regenerate
@@ -28,6 +32,7 @@ Only derived data is included: profiles, embeddings, selections and results. The
 | `experimento/distancias_freyjabm.csv` | 170 MB | `src/experimento.py` (computed and cached on first run) |
 | `criba/pares_opendata.pkl` | 660 MB | `src/criba.py` (computed and cached on first run) |
 | `criba/predicciones/` (test predictions) | 480 MB | `src/criba.py` |
+| `objetivos/predicciones/` (test predictions) | 170 MB | `src/objetivos.py` |
 | `inventario_lb_opendata.csv` | 173 MB | Quick inventory of the OpenData lake |
 
 ## Licences

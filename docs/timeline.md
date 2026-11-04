@@ -83,3 +83,11 @@ How the project evolved. Decision numbers refer to [methodology.md](methodology.
 - Found that Precision@10 depended on how ties were broken. Replaced by its expected value under random tie-breaking, in the analysis and in the screening results.
 - Paired bootstrap over the 89 test tables with Bonferroni-corrected intervals: RandomForest B is never worse than LightGBM or XGBoost and better with MPNet. The gain over FREYJA's model is solid in R² and uneven in ranking.
 - Learning curves with 10, 25, 50 and 100 % of the training tables: about +0.01 of Spearman per doubling of the data, with the three models rising in parallel.
+- Planned the dot product and Euclidean distance on unnormalised vectors (D37). Checked first how much each new target differs from the cosine.
+
+**4 November. Dot product, norms and 95 features.**
+- Trained on the dot product. With WarpGate it is much harder to predict than the cosine, with MPNet about the same. Compared against the cosine model, the dedicated model adds little.
+- Profiles predict each column's norm fairly well (R² about 0.5), mostly from text length.
+- Building the dot product from its parts works with MPNet and fails with WarpGate, where norm and cosine offset each other.
+- Gave the model each column's own profile values (95 features, D38). Largest gain of the project, especially for the cosine with WarpGate (Spearman +0.051, Precision@10 +0.046).
+- LightGBM and XGBoost with 95 features: no better at ranking. Learning curves with 95 features: flat for the cosine, same slope as before for the dot product.
